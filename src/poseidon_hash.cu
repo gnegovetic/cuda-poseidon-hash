@@ -1,6 +1,9 @@
 #include "stdio.h"
 #include <cstdint>
 #include "constants.h"
+#include <cuda.h>
+#include <gmp.h>
+#include <cgbn/cgbn.h>
 
 __device__ __constant__ uint64_t MODULUS[6] = {
     0x8508c00000000001ULL, 0x170b5d4430000000ULL, 0x1ef3622fba094800ULL,
