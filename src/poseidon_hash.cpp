@@ -1,7 +1,8 @@
-﻿#include <iostream>
-#include <format>
+﻿#include <format>
 #include "poseidon_hash.h"
 #include "constants.h"
+#include "utils.h"
+#include <cuda_runtime.h>
 
 int main(int argc, char**argv)
 {
@@ -13,7 +14,7 @@ int main(int argc, char**argv)
     }
 
     int numOfHashes = 1;
-    int hashLength = 256;
+    int hashLength = 6; // Number of chunks
     if (argc > 1) {
         numOfHashes = std::atoi(argv[1]);
     }
@@ -26,15 +27,13 @@ int main(int argc, char**argv)
     // Create test inputs
 
     // Allocate memory
-    uint8_t* d_input = nullptr;
-    uint8_t* d_output = nullptr;
+    bls12_377t* d_input = nullptr;
+    bls12_377t* d_output = nullptr;
     const int digestLength = 64;
-    CHECK_CUDA(cudaMalloc(&d_input, numOfHashes * hashLength * sizeof(uint8_t)));
-    CHECK_CUDA(cudaMalloc(&d_output, numOfHashes * digestLength * sizeof(uint8_t)));
+    CHECK_CUDA(cudaMalloc(&d_input, numOfHashes * hashLength * sizeof(bls12_377t)));
+    CHECK_CUDA(cudaMalloc(&d_output, numOfHashes * digestLength * sizeof(bls12_377t)));
 
-    auto gridDim = dim3(1, 1, 1);
-    auto blockDim = dim3(2, 1, 1);
-    launchKernel(gridDim, blockDim, d_input, d_output, numOfHashes, hashLength);
+    launchKernel(d_input, d_output, hashLength, numOfHashes);
     CHECK_CUDA(cudaGetLastError());
 
     CHECK_CUDA(cudaDeviceSynchronize());
