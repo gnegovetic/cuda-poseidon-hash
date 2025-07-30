@@ -225,6 +225,14 @@ static void cgbn_check(cgbn_error_report_t *report, const char *file=NULL, int32
 }
 #define CGBN_CHECK(report) cgbn_check(report, __FILE__, __LINE__)
 
+void InitializeKernel(const bls12_377t* hMDS, const bls12_377t* hARK) 
+{
+    // Copy MDS and ARK matrices to constant memory
+    static_assert(sizeof(bls12_377t) == sizeof(BigNum), "bls12_377t must match BigNum size");
+    CHECK_CUDA(cudaMemcpyToSymbol(MDS, hMDS, sizeof(BigNum) * T * T));
+    CHECK_CUDA(cudaMemcpyToSymbol(ARK, hARK, sizeof(BigNum) * T * (FULL_ROUNDS + PARTIAL_ROUNDS)));
+}
+
 void RunHashKernel(bls12_377t* d_input, bls12_377t* d_output, int lenght, int numOfHashes) 
 {
     cgbn_error_report_t* report;
