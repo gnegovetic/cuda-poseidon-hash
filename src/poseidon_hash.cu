@@ -88,6 +88,7 @@ __device__ void apply_mds(env_t& bn_env, const env_t::cgbn_t& m, env_t::cgbn_t* 
             env_t::cgbn_t mds_value;
             cgbn_load(bn_env, mds_value, &(MDS[i][j]));
             env_t::cgbn_t partial = temp[j];
+            // Optimization: Combine multiplication and addition in Montgomery space
             mult_and_reduce(bn_env, partial, mds_value, m);
             add_and_reduce(bn_env, acc, partial, m);
         }
