@@ -33,10 +33,8 @@ int main(int argc, char**argv)
     CHECK_CUDA(cudaMalloc(&d_input, numOfHashes * hashLength * sizeof(bls12_377t)));
     CHECK_CUDA(cudaMalloc(&d_output, numOfHashes * digestLength * sizeof(bls12_377t)));
 
-    launchKernel(d_input, d_output, hashLength, numOfHashes);
-    CHECK_CUDA(cudaGetLastError());
+    RunHashKernel(d_input, d_output, hashLength, numOfHashes);
 
-    CHECK_CUDA(cudaDeviceSynchronize());
 
     std::cout << "Done\n";
     return 0;
