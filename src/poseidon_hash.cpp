@@ -15,7 +15,7 @@ int main(int argc, char**argv)
     }
 
     int numOfHashes = 1;
-    int hashLength = 6; // Number of chunks
+    int hashLength = 1; // Number of chunks per hash
     if (argc > 1) {
         numOfHashes = std::atoi(argv[1]);
     }
@@ -32,30 +32,49 @@ int main(int argc, char**argv)
         for (int j = 0; j < FULL_ROUNDS + PARTIAL_ROUNDS; ++j) {
             bls12_377t* val = &(hARK[i][j]);
             memset(val, 0, sizeof(bls12_377t));
-            hARK[i][j].leaf[0] = i + j + 1;
+            hARK[i][j].limb[0] = i + j + 1;
         }
         for (int j = 0; j < T; ++j) {
-            bls12_377t* val = &(hARK[i][j]);
+            bls12_377t* val = &(hMDS[i][j]);
             memset(val, 0, sizeof(bls12_377t));
             if (i == j) {
-                hMDS[i][j].leaf[0] = 2; // Diagonal elements
+                hMDS[i][j].limb[0] = 2; // Diagonal elements
             } else {
-                hMDS[i][j].leaf[0] = 1; // Off-diagonal elements
+                hMDS[i][j].limb[0] = 1; // Off-diagonal elements
             }
         }
     }
     InitializeKernel(&(hMDS[0][0]), &(hARK[0][0]));
 
-    // Create test inputs
 
-    // Allocate memory
+    // Allocate device memory
     bls12_377t* d_input = nullptr;
     bls12_377t* d_output = nullptr;
-    const int digestLength = 64;
     CHECK_CUDA(cudaMalloc(&d_input, numOfHashes * hashLength * sizeof(bls12_377t)));
-    CHECK_CUDA(cudaMalloc(&d_output, numOfHashes * digestLength * sizeof(bls12_377t)));
+    CHECK_CUDA(cudaMalloc(&d_output, numOfHashes * hashLength * sizeof(bls12_377t)));
+
+    // Allocate host memory
+    bls12_377t* h_input = nullptr;
+    bls12_377t* h_output = nullptr;
+    CHECK_CUDA(cudaMallocHost(&h_input, numOfHashes * hashLength * sizeof(bls12_377t)));
+    CHECK_CUDA(cudaMallocHost(&h_output, numOfHashes * hashLength * sizeof(bls12_377t)));
+
+    // Create test inputs
+    memset(h_input, 0, numOfHashes * hashLength * sizeof(bls12_377t));
+    h_input[0].limb[0] = 77;
+
+    // Copy input to device
+    CHECK_CUDA(cudaMemcpy(d_input, h_input, numOfHashes * hashLength * sizeof(bls12_377t), cudaMemcpyHostToDevice));
 
     RunHashKernel(d_input, d_output, hashLength, numOfHashes);
+
+    // Copy output back to host
+    CHECK_CUDA(cudaMemcpy(h_output, d_output, numOfHashes * hashLength * sizeof(bls12_377t), cudaMemcpyDeviceToHost));
+    
+    // Print output
+    for (int i = 0; i < 12; i++) {
+        printf("Output[%d]: %0x\n", i, h_output[0].limb[i]);
+    }
 
 
     std::cout << "Done\n";

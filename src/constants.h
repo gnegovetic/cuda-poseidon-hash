@@ -12,7 +12,7 @@ const int ALPHA = 5;
 template<typename T, size_t N>
 struct tBigNumber {
     // Round up to the nearest multiple of words (e.g., 377/32 = 12 words)
-    T leaf[(N + (8*sizeof(T)) - 1) / (8*sizeof(T))];
+    T limb[(N + (8*sizeof(T)) - 1) / (8*sizeof(T))];
 };
 
 // Type definition for BLS12-377 field element

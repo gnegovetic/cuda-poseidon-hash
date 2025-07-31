@@ -10,20 +10,20 @@
 // IMPORTANT:  DO NOT DEFINE TPI OR BITS BEFORE INCLUDING CGBN
 #define TPI 32
 #define BITS 384
-#define WORDS (BITS / 32)
+#define LIMBS (BITS / 32)
 static_assert(BITS % sizeof(uint32_t) == 0, "BITS must be a multiple of 32");
 
 using BigNum = cgbn_mem_t<BITS>;
 static_assert(sizeof(BigNum) == sizeof(bls12_377t), "BigNum size must match cgbn_t size");
 
 
-__device__ __constant__ uint32_t BLS12_377_MODULUS[WORDS] = {
-    0x00000001, 0x8508c000,
-    0x30000000, 0x170b5d44,
-    0xba094800, 0x1ef3622f,
-    0x00f5138f, 0x1a22d9f3,
-    0x6ca1493b, 0xc63b05c0,
-    0x17c510ea, 0x01ae3a46
+__device__ __constant__ uint32_t BLS12_377_MODULUS[LIMBS] = {
+    0x7c13dd1f, 0xc1f1b407,
+    0xc2d93aed, 0x8ac2e6f4,
+    0xa4b97f2b, 0x41b4a6bb,
+    0x17c510e6, 0x01ae3a46,
+    0x00000000, 0x00000000,
+    0x00000000, 0x00000000
 };
 
 using context_t = cgbn_context_t<TPI>;
@@ -34,24 +34,54 @@ __device__ __constant__ BigNum MDS[T][T];
 
 enum class State { absorbing, squeezing };
 
+__device__ void print(const char* name, const env_t& bn_env, const env_t::cgbn_t& a)
+{
+    BigNum buffer;
+    cgbn_store(bn_env, &buffer, a);
+    if (threadIdx.x == 0) {
+        printf("%s: \n", name);
+    }
+    __syncthreads();
+    for (int i = 0; i < LIMBS; i++) {
+        if (threadIdx.x == i) {
+            printf("%d: %x\n", i, buffer._limbs[i]);
+        }        
+    }
+    __syncthreads();
+}
+
 __device__ __forceinline__ void add_and_reduce(env_t& bn_env, env_t::cgbn_t& a, const env_t::cgbn_t& b, const env_t::cgbn_t& m)
 {
     cgbn_add(bn_env, a, a, b);
     cgbn_rem(bn_env, a, a, m); // reduce
 }
 
-__device__ __forceinline__ void mult_and_reduce(env_t& bn_env, env_t::cgbn_t& a, env_t::cgbn_t& b, const env_t::cgbn_t& m, int alpha = 1)
+__device__ __forceinline__ void mult_and_reduce(env_t& bn_env, env_t::cgbn_t& a, env_t::cgbn_t& b, const env_t::cgbn_t& m)
 {
     // convert a and b to Montgomery space
     uint32_t np0 = cgbn_bn2mont(bn_env, a, a, m);
     cgbn_bn2mont(bn_env, b, b, m);
 
-    #pragma unroll
-    for (int i = 0; i < alpha; i++) {
-        cgbn_mont_mul(bn_env, a, a, b, m, np0);
-    }
+    cgbn_mont_mul(bn_env, a, a, b, m, np0);
     
     // convert r back to normal space
+    cgbn_mont2bn(bn_env, a, a, m, np0);
+}
+
+template<int POWER>
+__device__ __forceinline__ void pow_and_reduce(env_t& bn_env, env_t::cgbn_t& a, const env_t::cgbn_t& m)
+{
+    env_t::cgbn_t b = a; // copy a to b
+
+    // convert to Montgomery space
+    uint32_t np0 = cgbn_bn2mont(bn_env, a, a, m);
+    cgbn_bn2mont(bn_env, b, b, m);
+
+    #pragma unroll
+        for (int i = 0; i < (POWER - 1); i++) {
+            cgbn_mont_mul(bn_env, a, a, b, m, np0);
+        }
+
     cgbn_mont2bn(bn_env, a, a, m, np0);
 }
 
@@ -69,7 +99,7 @@ __device__ void apply_sbox(env_t& bn_env, const env_t::cgbn_t& m, env_t::cgbn_t*
     const int range = full_round ? T : 1;
 
     for (int i = 0; i < range; i++) {
-        mult_and_reduce(bn_env, state[i], state[i], m, range);
+        pow_and_reduce<ALPHA>(bn_env, state[i], m);
     }
 }
 
@@ -102,9 +132,13 @@ __device__ void permute(env_t& bn_env, env_t::cgbn_t* state, const env_t::cgbn_t
     int round_idx = 0;
     // Full rounds (first half)
     for (int i = 0; i < FULL_ROUNDS / 2; i++) {
+        //print("Input State", bn_env, state[0]);
         apply_ark(bn_env, m, state, round_idx);
+        print("After ARK", bn_env, state[0]);
         apply_sbox(bn_env, m, state, true);
+        print("After SBOX", bn_env, state[0]);
         apply_mds(bn_env, m, state);
+        // print("After MDS", bn_env, state[0]);
         round_idx++;
     }
     // Partial rounds
@@ -177,13 +211,19 @@ __global__ void PoseidonHash(cgbn_error_report_t *report, BigNum* d_input, BigNu
     BigNum state[3] = { 0 };
     State currentState = State::absorbing;
 
-    BigNum* modulus = reinterpret_cast<BigNum*>(BLS12_377_MODULUS);
-    cgbn_load(bn_env, m, modulus);
+    BigNum modulus;
+    for (int i = 0; i < LIMBS; i++) {
+        modulus._limbs[i] = BLS12_377_MODULUS[i];
+    }
+    __syncthreads();
+    cgbn_load(bn_env, m, &modulus);
+    // print("Modulus", bn_env, m);
 
     // Initialize state
     for (int i = 0; i < T; i++) {
         cgbn_load(bn_env, cgbn_state[i], &state[i]);
     }
+    //print("Initial State", bn_env, cgbn_state[0]);
 
     BigNum* input = &d_input[instance * length];
     absorb(bn_env, input, m, length, cgbn_state);
@@ -193,8 +233,8 @@ __global__ void PoseidonHash(cgbn_error_report_t *report, BigNum* d_input, BigNu
 
 
 
-    printf("Hello from GPU, block (%d,%d,%d), thread(%d,%d,%d)\n", 
-        blockIdx.x, blockIdx.y, blockIdx.z, threadIdx.x, threadIdx.y, threadIdx.z);
+    // printf("Hello from GPU, block (%d,%d,%d), thread(%d,%d,%d)\n", 
+    //     blockIdx.x, blockIdx.y, blockIdx.z, threadIdx.x, threadIdx.y, threadIdx.z);
 }
 
 static void cgbn_check(cgbn_error_report_t *report, const char *file=NULL, int32_t line=0) {
