@@ -4,6 +4,7 @@
 #include "utils.h"
 #include <cstring>
 #include <cuda_runtime.h>
+#include <chrono>
 
 int main(int argc, char**argv)
 {
@@ -15,13 +16,13 @@ int main(int argc, char**argv)
     }
 
     int numOfHashes = 1;
-    int hashLength = 1; // Number of chunks per hash
     if (argc > 1) {
         numOfHashes = std::atoi(argv[1]);
     }
-    if (argc > 2) {
-        hashLength = std::atoi(argv[2]);
-    }
+    int hashLength = 1; // Number of chunks per hash
+    // if (argc > 2) {
+    //     hashLength = std::atoi(argv[2]);
+    // }
 
     std::cout << std::format("Running {} Poseidon hashes of length {}\n", numOfHashes, hashLength);
 
@@ -66,15 +67,22 @@ int main(int argc, char**argv)
     // Copy input to device
     CHECK_CUDA(cudaMemcpy(d_input, h_input, numOfHashes * hashLength * sizeof(bls12_377t), cudaMemcpyHostToDevice));
 
+    auto start_time = std::chrono::high_resolution_clock::now();
+
     RunHashKernel(d_input, d_output, hashLength, numOfHashes);
 
     // Copy output back to host
     CHECK_CUDA(cudaMemcpy(h_output, d_output, numOfHashes * hashLength * sizeof(bls12_377t), cudaMemcpyDeviceToHost));
     
-    // Print output
-    for (int i = 0; i < 12; i++) {
-        printf("Output[%d]: %0x\n", i, h_output[0].limb[i]);
-    }
+    auto end_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> elapsed = end_time - start_time;
+    std::cout << std::format("{} hashes took: {:.3f} ms\n", numOfHashes, elapsed.count());
+
+
+    // Print output 0
+    // for (int i = 0; i < 12; i++) {
+    //     printf("Output[%d]: %0x\n", i, h_output[0].limb[i]);
+    // }
 
 
     std::cout << "Done\n";

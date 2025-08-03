@@ -17,11 +17,11 @@ using BigNum = cgbn_mem_t<BITS>;
 static_assert(sizeof(BigNum) == sizeof(bls12_377t), "BigNum size must match cgbn_t size");
 
 
-__device__ __constant__ uint32_t BLS12_377_MODULUS[LIMBS] = {
-    0x7c13dd1f, 0xc1f1b407,
-    0xc2d93aed, 0x8ac2e6f4,
-    0xa4b97f2b, 0x41b4a6bb,
-    0x17c510e6, 0x01ae3a46,
+__device__ __constant__ uint32_t BLS12_377_MODULUS[LIMBS] = {    
+    0x00000001, 0x0a118000,
+    0xd0000001, 0x59aa76fe,
+    0x5c37b001, 0x60b44d1e,
+    0x9a2ca556, 0x12ab655e,
     0x00000000, 0x00000000,
     0x00000000, 0x00000000
 };
@@ -34,6 +34,7 @@ __device__ __constant__ BigNum MDS[T][T];
 
 enum class State { absorbing, squeezing };
 
+// Print a cgbn_t value for debugging
 __device__ void print(const char* name, const env_t& bn_env, const env_t::cgbn_t& a)
 {
     BigNum buffer;
@@ -132,13 +133,9 @@ __device__ void permute(env_t& bn_env, env_t::cgbn_t* state, const env_t::cgbn_t
     int round_idx = 0;
     // Full rounds (first half)
     for (int i = 0; i < FULL_ROUNDS / 2; i++) {
-        //print("Input State", bn_env, state[0]);
         apply_ark(bn_env, m, state, round_idx);
-        print("After ARK", bn_env, state[0]);
         apply_sbox(bn_env, m, state, true);
-        print("After SBOX", bn_env, state[0]);
         apply_mds(bn_env, m, state);
-        // print("After MDS", bn_env, state[0]);
         round_idx++;
     }
     // Partial rounds
@@ -217,13 +214,11 @@ __global__ void PoseidonHash(cgbn_error_report_t *report, BigNum* d_input, BigNu
     }
     __syncthreads();
     cgbn_load(bn_env, m, &modulus);
-    // print("Modulus", bn_env, m);
 
     // Initialize state
     for (int i = 0; i < T; i++) {
         cgbn_load(bn_env, cgbn_state[i], &state[i]);
     }
-    //print("Initial State", bn_env, cgbn_state[0]);
 
     BigNum* input = &d_input[instance * length];
     absorb(bn_env, input, m, length, cgbn_state);
