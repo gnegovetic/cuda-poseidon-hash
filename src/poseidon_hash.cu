@@ -226,10 +226,7 @@ __global__ void PoseidonHash(cgbn_error_report_t *report, BigNum* d_input, BigNu
     BigNum* output = &d_output[instance * 1]; // Assuming we output one hash per instance
     squeeze(bn_env, currentState, output, m, cgbn_state);
 
-
-
-    // printf("Hello from GPU, block (%d,%d,%d), thread(%d,%d,%d)\n", 
-    //     blockIdx.x, blockIdx.y, blockIdx.z, threadIdx.x, threadIdx.y, threadIdx.z);
+    
 }
 
 static void cgbn_check(cgbn_error_report_t *report, const char *file=NULL, int32_t line=0) {
