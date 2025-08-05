@@ -10,6 +10,9 @@ It uses the [CGBN CUDA library](https://github.com/NVlabs/CGBN) to implement big
 - Setup code, constant initialization, etc., are in `src/poseidon_hash.cpp`.
 - Reference Python code is in the `ref` folder.
 
+## Prerequisites  
+GNU Multiple Precision Arithmetic Library, can be install with `apt install libgmp-dev`
+
 ## Build
 
 Tested on Ubuntu 24.04, CUDA Toolkit 12.8, Nvidia Tesla T4 GPU.
