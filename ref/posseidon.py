@@ -26,10 +26,12 @@ MDS = [
     [Fq(1), Fq(1), Fq(2)],
 ]
 
-def print_state(state):
-    print(f"1: {hex(int(state[0]))}")
-    print(f"2: {hex(int(state[1]))}")
-    print(f"3: {hex(int(state[2]))}")
+def print_fqs(name: str, numbers: list[Fq]):
+    ''' Splits and prints each state value into 12 little-endian 32-bit words'''
+    print(f"{name}:")
+    for val in numbers:
+        words = [(int(val) >> (32 * i)) & 0xFFFFFFFF for i in range(12)]
+        print(" ".join(f"{i}:0x{w:08x}" for i, w in enumerate(words)))
 
 class PoseidonPermutation:
     def __init__(self):
@@ -42,7 +44,6 @@ class PoseidonPermutation:
             self.apply_ark(round_idx)
             self.apply_sbox(full=True)
             self.apply_mds()
-            print_state(self.state)
             round_idx += 1
         # Partial rounds
         for _ in range(PARTIAL_ROUNDS):
@@ -122,7 +123,10 @@ class PoseidonSponge:
         self.pos = 0
         self.mode = "absorbing"
         self.absorb(inputs)
-        return self.squeeze(num_outputs) if num_outputs > 1 else self.squeeze(1)[0]
+        # print_fqs("After absorbing", self.state)
+        outputs = self.squeeze(num_outputs)
+        print_fqs("After squeeze", self.state)
+        return outputs if num_outputs > 1 else outputs[0]
 
     def hash_bytes(self, data: bytes, num_outputs=1):
         """
@@ -138,16 +142,6 @@ class PoseidonSponge:
         return self.hash(elements, num_outputs)
 
 
-def print_hex_words(bignumber):
-    ''' Print a big number as 12 little-endian 32-bit hex words. '''
-    words = []
-    bytes = bignumber.to_bytes(48, byteorder='little')
-    for i in range(0, 48, 4):
-        word = int.from_bytes(bytes[i:i+4], 'little')
-        words.append(f"0x{word:08x}")
-    print("MODULUS as 12 little-endian 32-bit hex words:")
-    print(", ".join(words))
-
 if __name__ == "__main__":
 
     # Hash 256 bytes (0..255)
@@ -158,13 +152,9 @@ if __name__ == "__main__":
     # print(f"[{digest[0]:064x}],")
     # print(f"[{digest[1]:064x}]")
 
-    print_hex_words(MODULUS)
+    #print_fqs("modulus", [MODULUS])
 
     # Test with a single field element
     sponge = PoseidonSponge()
     single_element_hash = sponge.hash([77], num_outputs=1)
-    print(f"Poseidon hash([77]) = {single_element_hash:0128x}")
-    hash_bytes = single_element_hash.to_bytes(32, byteorder='little')
-    for i in range(0, len(hash_bytes), 4):
-        chunk = hash_bytes[i:i+4]
-        print(f"Chunk {i//4}: {chunk.hex()}")
+    print_fqs("Hash", [single_element_hash])

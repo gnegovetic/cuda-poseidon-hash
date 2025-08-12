@@ -35,20 +35,26 @@ __device__ __constant__ BigNum MDS[T][T];
 enum class State { absorbing, squeezing };
 
 // Print a cgbn_t value for debugging
-__device__ void print(const char* name, const env_t& bn_env, const env_t::cgbn_t& a)
+template<int NUM_ELEMENTS>
+__device__ void print(const char* name, const env_t& bn_env, const env_t::cgbn_t* a)
 {
-    BigNum buffer;
-    cgbn_store(bn_env, &buffer, a);
+    BigNum buffer[NUM_ELEMENTS];
+    cgbn_store(bn_env, &(buffer[0]), a[0]);
     if (threadIdx.x == 0) {
         printf("%s: \n", name);
     }
-    __syncthreads();
-    for (int i = 0; i < LIMBS; i++) {
-        if (threadIdx.x == i) {
-            printf("%d: %x\n", i, buffer._limbs[i]);
-        }        
+    for (int j = 0; j < NUM_ELEMENTS; j++) {
+        __syncthreads();
+        for (int i = 0; i < LIMBS; i++) {
+            if (threadIdx.x == i) {
+                printf("%d:0x%08x ", i, buffer[j]._limbs[i]);
+            }        
+        }
+        __syncthreads();
+        if (threadIdx.x == 0) {
+            printf("\n");
+        }
     }
-    __syncthreads();
 }
 
 __device__ __forceinline__ void add_and_reduce(env_t& bn_env, env_t::cgbn_t& a, const env_t::cgbn_t& b, const env_t::cgbn_t& m)
@@ -155,11 +161,11 @@ __device__ void permute(env_t& bn_env, env_t::cgbn_t* state, const env_t::cgbn_t
 }
 
 
-__device__ void absorb(env_t& bn_env, BigNum* input, const env_t::cgbn_t& m, int lenghth, env_t::cgbn_t* state)
+__device__ void absorb(env_t& bn_env, BigNum* input, const env_t::cgbn_t& m, int length, env_t::cgbn_t* state)
 {
     int pos = 0;
     env_t::cgbn_t a;
-    for (int i = 0; i < lenghth; i++) {
+    for (int i = 0; i < length; i++) {
         if (pos == RATE) {
             permute(bn_env, state, m);
             pos = 0;
@@ -169,6 +175,7 @@ __device__ void absorb(env_t& bn_env, BigNum* input, const env_t::cgbn_t& m, int
         add_and_reduce(bn_env, state[pos], a, m);  
         pos++;
     }
+    //print<3>("State after absorbing", bn_env, state); // Debugging print
 }
 
 __device__ void squeeze(env_t& bn_env, State& s, BigNum* output, const env_t::cgbn_t& m, env_t::cgbn_t* state)
@@ -190,6 +197,8 @@ __device__ void squeeze(env_t& bn_env, State& s, BigNum* output, const env_t::cg
         cgbn_store(bn_env, &(output[i]), state[pos]);  // Store the result
         pos++;
     }
+
+    print<3>("State after squeeze", bn_env, state); // Debugging print
 }
 
 __global__ void PoseidonHash(cgbn_error_report_t *report, BigNum* d_input, BigNum* d_output, int length, int numOfHashes) 

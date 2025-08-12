@@ -45,7 +45,7 @@ sudo /usr/local/cuda-12.8/bin/ncu --set full --import-source yes --export report
 
 ### Bugs
 
-- Output bytes are transposed compared to the Python reference implementation.
+- Data mismatch for multiple outputs
 
 ### Current Limitations
 
