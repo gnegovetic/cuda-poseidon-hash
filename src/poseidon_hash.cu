@@ -39,11 +39,11 @@ template<int NUM_ELEMENTS>
 __device__ void print(const char* name, const env_t& bn_env, const env_t::cgbn_t* a)
 {
     BigNum buffer[NUM_ELEMENTS];
-    cgbn_store(bn_env, &(buffer[0]), a[0]);
     if (threadIdx.x == 0) {
         printf("%s: \n", name);
     }
     for (int j = 0; j < NUM_ELEMENTS; j++) {
+        cgbn_store(bn_env, &(buffer[j]), a[j]);
         __syncthreads();
         for (int i = 0; i < LIMBS; i++) {
             if (threadIdx.x == i) {
@@ -85,9 +85,9 @@ __device__ __forceinline__ void pow_and_reduce(env_t& bn_env, env_t::cgbn_t& a, 
     cgbn_bn2mont(bn_env, b, b, m);
 
     #pragma unroll
-        for (int i = 0; i < (POWER - 1); i++) {
-            cgbn_mont_mul(bn_env, a, a, b, m, np0);
-        }
+    for (int i = 0; i < (POWER - 1); i++) {
+        cgbn_mont_mul(bn_env, a, a, b, m, np0);
+    }
 
     cgbn_mont2bn(bn_env, a, a, m, np0);
 }
@@ -211,22 +211,18 @@ __global__ void PoseidonHash(cgbn_error_report_t *report, BigNum* d_input, BigNu
     context_t      bn_context(cgbn_report_monitor, report, instance);
     env_t          bn_env(bn_context.env<env_t>());
     // CGBN variables (input, modulus, result)
-    env_t::cgbn_t m; 
-    env_t::cgbn_t cgbn_state[T];
-
-    BigNum state[3] = { 0 };
+    
     State currentState = State::absorbing;
+    BigNum zero = {0};
+    
+    // Load modulus
+    env_t::cgbn_t m;
+    cgbn_load(bn_env, m, reinterpret_cast<BigNum*>(&BLS12_377_MODULUS[0]));
 
-    BigNum modulus;
-    for (int i = 0; i < LIMBS; i++) {
-        modulus._limbs[i] = BLS12_377_MODULUS[i];
-    }
-    __syncthreads();
-    cgbn_load(bn_env, m, &modulus);
-
-    // Initialize state
+    // Initialize state (can be shared if wide to support the number of instances per block)
+    env_t::cgbn_t cgbn_state[T];
     for (int i = 0; i < T; i++) {
-        cgbn_load(bn_env, cgbn_state[i], &state[i]);
+        cgbn_load(bn_env, cgbn_state[i], &zero);
     }
 
     BigNum* input = &d_input[instance * length];

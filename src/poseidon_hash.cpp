@@ -80,10 +80,11 @@ int main(int argc, char**argv)
 
 
     // Print output 0
+    // printf("Hash:\n");
     // for (int i = 0; i < 12; i++) {
-    //     printf("Output[%d]: %0x\n", i, h_output[0].limb[i]);
+    //     printf("%d: 0x%08x ", i, h_output[0].limb[i]);
     // }
-
+    // printf("\n");
 
     std::cout << "Done\n";
     return 0;

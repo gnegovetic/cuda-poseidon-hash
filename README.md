@@ -45,8 +45,6 @@ sudo /usr/local/cuda-12.8/bin/ncu --set full --import-source yes --export report
 
 ### Bugs
 
-- Data mismatch for multiple outputs
-
 ### Current Limitations
 
 - Input size is limited to a single 12-byte number.
